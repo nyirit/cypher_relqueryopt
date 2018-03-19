@@ -47,19 +47,16 @@ public class Main implements AutoCloseable
             "MATCH (parent:Operator)-[pe:CHILD]->(proj:Projection)-[ce:CHILD]->(child:Operator)\n" +
             "WHERE child.schema = proj.schema\n" +
             "CREATE (parent)-[:CHILD]->(child)\n" +
-            "WITH proj\n" +
             "DETACH DELETE proj\n" +
             "RETURN count(proj)";
 
-    private final String DEEPEN_PROJ = "" +
+    private final String PROJ_PUSHDOWN = "" +
             "MATCH (parent:Operator)-[e1:CHILD]->(proj:Projection)-[e2:CHILD]->(sel:Selection)-[e3:CHILD]->(child:Operator)\n" +
             "WHERE sel.attribute IN proj.attributes\n" +
             "CREATE (parent)-[:CHILD]->(sel)-[:CHILD]->(proj)-[:CHILD]->(child)\n" +
             "SET sel.schema = proj.schema\n" +
             "WITH e1, e2, e3, COUNT(proj) as count\n" +
-            "DELETE e1\n" +
-            "DELETE e2\n" +
-            "DELETE e3\n" +
+            "DELETE e1, e2, e3\n" +
             "RETURN count";
 
     private final String DELETE_USELESS_JOIN = "" +
@@ -69,9 +66,7 @@ public class Main implements AutoCloseable
                 "CREATE (proj)-[:CHILD]->(lop)\n" +
                 "WITH e1, er, el, join, COUNT(proj) as count\n" +
                 "DETACH DELETE join\n" +
-                "DELETE e1\n" +
-                "DELETE er\n" +
-                "DELETE el\n" +
+                "DELETE e1, er, el\n" +
                 "RETURN count";
 
     private final Driver driver;
@@ -137,7 +132,7 @@ public class Main implements AutoCloseable
                 public String execute(Transaction tx) {
                     Integer deepen_proj;
                     do {
-                        StatementResult sr = tx.run(DEEPEN_PROJ);
+                        StatementResult sr = tx.run(PROJ_PUSHDOWN);
                         deepen_proj = sr.hasNext() ? sr.single().get(0).asInt() : 0;
                         System.out.println("Deepen projection count: " + deepen_proj);
                     } while(deepen_proj > 0);
